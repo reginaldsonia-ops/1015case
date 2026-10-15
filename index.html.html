@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>雙軸四象限資料工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            850: '#1e293b',
+                            900: '#0f172a'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #ffffff;
+            color: #000000;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #ffffff;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #000000;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #333333;
+        }
+    </style>
+</head>
+<body class="bg-white text-black h-full flex flex-col m-0 p-0 overflow-x-hidden">
+
+    <!-- 頂部標題列 (白底黑線風格) -->
+    <header class="bg-white text-black border-b-2 border-black px-6 py-4 flex flex-wrap justify-between items-center gap-4 shrink-0">
+        <div>
+            <h1 class="text-xl font-bold tracking-wide flex items-center gap-2 text-black">
+                <svg class="w-6 h-6 text-black" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v5zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v15z"></path></svg>
+                雙軸四象限資料分析工具
+            </h1>
+            <p class="text-xs text-gray-700 mt-0.5">單檔、離線可用、無外部依賴（支援客戶與產業別匯入、X軸客戶數、Y軸產業別分析與依產業別變色曲線）</p>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+            <button onclick="document.getElementById('csvFileInput').click()" class="bg-white hover:bg-black hover:text-white text-black text-sm px-4 py-2 rounded-lg font-bold border-2 border-black transition flex items-center gap-1.5 cursor-pointer">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                載入 CSV
+            </button>
+            <input type="file" id="csvFileInput" accept=".csv" class="hidden" onchange="handleFileSelect(event)">
+            
+            <button onclick="exportDataCSV()" class="bg-white hover:bg-black hover:text-white text-black text-sm px-3 py-2 rounded-lg font-bold border-2 border-black transition flex items-center gap-1.5 cursor-pointer">
+                匯出資料 CSV
+            </button>
+            <button onclick="exportResultCSV()" class="bg-white hover:bg-black hover:text-white text-black text-sm px-3 py-2 rounded-lg font-bold border-2 border-black transition flex items-center gap-1.5 cursor-pointer">
+                匯出結果 CSV
+            </button>
+            <button onclick="exportChartPNG()" class="bg-black hover:bg-gray-800 text-white text-sm px-3 py-2 rounded-lg font-bold border-2 border-black transition flex items-center gap-1.5 cursor-pointer" title="下載去背圖表 PNG">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                下載去背 PNG
+            </button>
+            <button onclick="confirmReset()" class="bg-white hover:bg-red-600 hover:text-white text-red-600 border-2 border-red-600 text-sm px-3 py-2 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer">
+                清除重來
+            </button>
+        </div>
+    </header>
+
+    <!-- 主體內容區 -->
+    <main class="flex-1 flex flex-col lg:flex-row overflow-hidden p-4 gap-4 bg-white">
+
+        <!-- 左側面板：設定與資料管理 -->
+        <aside class="w-full lg:w-96 bg-white rounded-xl border-2 border-black flex flex-col overflow-hidden shrink-0">
+            <!-- 分頁標籤 -->
+            <div class="flex border-b-2 border-black bg-white text-sm font-bold">
+                <button onclick="switchTab('settings')" id="tab-settings" class="flex-1 py-3 px-4 text-center border-r-2 border-black bg-black text-white transition">設定與對應</button>
+                <button onclick="switchTab('data')" id="tab-data" class="flex-1 py-3 px-4 text-center text-black hover:bg-gray-100 transition">資料管理 (<span id="dataCountBadge">0</span>)</button>
+            </div>
+
+            <!-- 分頁內容 -->
+            <div class="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-6 bg-white">
+
+                <!-- 1. 設定面板 -->
+                <div id="panel-settings" class="space-y-5">
+                    <!-- 欄位對應 -->
+                    <div id="mappingSection" class="bg-white border-2 border-black rounded-lg p-4 space-y-3">
+                        <h3 class="text-xs font-bold text-black uppercase tracking-wider border-b border-black pb-1">欄位對應設定</h3>
+                        <div class="space-y-2">
+                            <div>
+                                <label class="block text-xs font-semibold text-black mb-1">識別碼欄位 (ID)</label>
+                                <select id="colId" onchange="updateMappingAndRecompute()" class="w-full text-sm bg-white border border-black rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-black">
+                                    <option value="">-- 請選擇 --</option>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-xs font-semibold text-black mb-1">客戶名稱欄位 (匯入)</label>
+                                    <select id="colClient" onchange="updateMappingAndRecompute()" class="w-full text-sm bg-white border border-black rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-black">
+                                        <option value="">-- 無 --</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-black mb-1">產業別欄位 (匯入)</label>
+                                    <select id="colIndustry" onchange="updateMappingAndRecompute()" class="w-full text-sm bg-white border border-black rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-black">
+                                        <option value="">-- 無 --</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2 pt-1">
+                                <div>
+                                    <label class="block text-xs font-semibold text-black mb-1">X 數值欄位 (客戶數)</label>
+                                    <select id="colX" onchange="updateMappingAndRecompute()" class="w-full text-sm bg-white border border-black rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-black">
+                                        <option value="">-- 請選擇 --</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-black mb-1">Y 數值欄位 (產業別)</label>
+                                    <select id="colY" onchange="updateMappingAndRecompute()" class="w-full text-sm bg-white border border-black rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-black">
+                                        <option value="">-- 請選擇 --</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 坐標軸與分界設定 -->
+                    <div class="space-y-3">
+                        <h3 class="text-xs font-bold text-black uppercase tracking-wider border-b border-black pb-1">坐標軸與分界值設定</h3>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-black mb-1">X 軸標題 (客戶數)</label>
+                                <input type="text" id="settingXTitle" value="客戶數" oninput="saveSettingsAndRedraw()" class="w-full text-sm border border-black rounded-md px-3 py-1.5 bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-black mb-1">X 軸單位</label>
+                                <input type="text" id="settingXUnit" value="家" placeholder="例:家" oninput="saveSettingsAndRedraw()" class="w-full text-sm border border-black rounded-md px-3 py-1.5 bg-white">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-black mb-1">Y 軸標題 (產業別)</label>
+                                <input type="text" id="settingYTitle" value="產業別" oninput="saveSettingsAndRedraw()" class="w-full text-sm border border-black rounded-md px-3 py-1.5 bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-black mb-1">Y 軸單位</label>
+                                <input type="text" id="settingYUnit" value="" placeholder="例:分" oninput="saveSettingsAndRedraw()" class="w-full text-sm border border-black rounded-md px-3 py-1.5 bg-white">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3 pt-1">
+                            <div>
+                                <label class="block text-xs font-semibold text-black mb-1">X 分界值 (客戶數門檻)</label>
+                                <input type="number" step="any" id="settingXSplit" value="0" oninput="saveSettingsAndRedraw()" class="w-full text-sm border border-black rounded-md px-3 py-1.5 bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-black mb-1">Y 分界值 (產業別門檻)</label>
+                                <input type="number" step="any" id="settingYSplit" value="0" oninput="saveSettingsAndRedraw()" class="w-full text-sm border border-black rounded-md px-3 py-1.5 bg-white">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 軸顯示範圍設定 (選填) -->
+                    <div class="space-y-3 pt-2 border-t border-black">
+                        <h3 class="text-xs font-bold text-black uppercase tracking-wider">顯示範圍限制 (選填)</h3>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-black mb-1">X 軸 最小 / 最大</label>
+                                <div class="flex gap-1">
+                                    <input type="number" step="any" id="settingXMin" placeholder="自動" oninput="saveSettingsAndRedraw()" class="w-1/2 text-sm border border-black rounded-md px-2 py-1.5 bg-white">
+                                    <input type="number" step="any" id="settingXMax" placeholder="自動" oninput="saveSettingsAndRedraw()" class="w-1/2 text-sm border border-black rounded-md px-2 py-1.5 bg-white">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-black mb-1">Y 軸 最小 / 最大</label>
+                                <div class="flex gap-1">
+                                    <input type="number" step="any" id="settingYMin" placeholder="自動" oninput="saveSettingsAndRedraw()" class="w-1/2 text-sm border border-black rounded-md px-2 py-1.5 bg-white">
+                                    <input type="number" step="any" id="settingYMax" placeholder="自動" oninput="saveSettingsAndRedraw()" class="w-1/2 text-sm border border-black rounded-md px-2 py-1.5 bg-white">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 四象限名稱與說明設定 -->
+                    <div class="space-y-3 pt-2 border-t border-black">
+                        <h3 class="text-xs font-bold text-black uppercase tracking-wider">四象限名稱與說明</h3>
+                        
+                        <!-- 右上 -->
+                        <div class="bg-white p-3 rounded-lg border border-black space-y-2">
+                            <div class="text-xs font-bold text-black flex justify-between items-center">
+                                <span>右上象限 (X ≥ 分界, Y ≥ 分界)</span>
+                                <span class="bg-black text-white text-[10px] px-1.5 py-0.5 rounded font-mono">Right-Top</span>
+                            </div>
+                            <input type="text" id="qRT_name" value="右上象限" oninput="saveSettingsAndRedraw()" class="w-full text-xs font-bold border border-black rounded px-2 py-1 bg-white">
+                            <input type="text" id="qRT_desc" value="客戶數高、產業別高" oninput="saveSettingsAndRedraw()" class="w-full text-xs text-black border border-black rounded px-2 py-1 bg-white" placeholder="說明文字">
+                        </div>
+
+                        <!-- 左上 -->
+                        <div class="bg-white p-3 rounded-lg border border-black space-y-2">
+                            <div class="text-xs font-bold text-black flex justify-between items-center">
+                                <span>左上象限 (X < 分界, Y ≥ 分界)</span>
+                                <span class="bg-black text-white text-[10px] px-1.5 py-0.5 rounded font-mono">Left-Top</span>
+                            </div>
+                            <input type="text" id="qLT_name" value="左上象限" oninput="saveSettingsAndRedraw()" class="w-full text-xs font-bold border border-black rounded px-2 py-1 bg-white">
+                            <input type="text" id="qLT_desc" value="客戶數低、產業別高" oninput="saveSettingsAndRedraw()" class="w-full text-xs text-black border border-black rounded px-2 py-1 bg-white" placeholder="說明文字">
+                        </div>
+
+                        <!-- 左下 -->
+                        <div class="bg-white p-3 rounded-lg border border-black space-y-2">
+                            <div class="text-xs font-bold text-black flex justify-between items-center">
+                                <span>左下象限 (X < 分界, Y < 分界)</span>
+                                <span class="bg-black text-white text-[10px] px-1.5 py-0.5 rounded font-mono">Left-Bottom</span>
+                            </div>
+                            <input type="text" id="qLB_name" value="左下象限" oninput="saveSettingsAndRedraw()" class="w-full text-xs font-bold border border-black rounded px-2 py-1 bg-white">
+                            <input type="text" id="qLB_desc" value="客戶數低、產業別低" oninput="saveSettingsAndRedraw()" class="w-full text-xs text-black border border-black rounded px-2 py-1 bg-white" placeholder="說明文字">
+                        </div>
+
+                        <!-- 右下 -->
+                        <div class="bg-white p-3 rounded-lg border border-black space-y-2">
+                            <div class="text-xs font-bold text-black flex justify-between items-center">
+                                <span>右下象限 (X ≥ 分界, Y < 分界)</span>
+                                <span class="bg-black text-white text-[10px] px-1.5 py-0.5 rounded font-mono">Right-Bottom</span>
+                            </div>
+                            <input type="text" id="qRB_name" value="右下象限" oninput="saveSettingsAndRedraw()" class="w-full text-xs font-bold border border-black rounded px-2 py-1 bg-white">
+                            <input type="text" id="qRB_desc" value="客戶數高、產業別低" oninput="saveSettingsAndRedraw()" class="w-full text-xs text-black border border-black rounded px-2 py-1 bg-white" placeholder="說明文字">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. 資料管理面板 -->
+                <div id="panel-data" class="hidden space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-xs font-bold text-black uppercase tracking-wider">手動新增資料列</h3>
+                    </div>
+                    <form onsubmit="addNewRow(event)" class="bg-white p-3 rounded-lg border-2 border-black space-y-3">
+                        <div>
+                            <label class="block text-xs font-bold text-black mb-1">識別碼 (ID)</label>
+                            <input type="text" id="newId" required placeholder="例: 項目A" class="w-full text-sm border border-black rounded px-3 py-1.5 bg-white">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs font-bold text-black mb-1">客戶名稱 (匯入/選填)</label>
+                                <input type="text" id="newClient" placeholder="例: 宏碁" class="w-full text-sm border border-black rounded px-3 py-1.5 bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-black mb-1">產業別 (匯入/選填)</label>
+                                <input type="text" id="newIndustry" placeholder="例: 科技業" class="w-full text-sm border border-black rounded px-3 py-1.5 bg-white">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs font-bold text-black mb-1">X 數值 (客戶數)</label>
+                                <input type="number" step="any" id="newX" required placeholder="客戶數" class="w-full text-sm border border-black rounded px-3 py-1.5 bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-black mb-1">Y 數值 (產業別)</label>
+                                <input type="number" step="any" id="newY" required placeholder="產業別數值" class="w-full text-sm border border-black rounded px-3 py-1.5 bg-white">
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full bg-black hover:bg-gray-800 text-white text-xs font-bold py-2 rounded transition">加入資料列</button>
+                    </form>
+
+                    <div class="pt-2 border-t border-black">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="text-xs font-bold text-black uppercase tracking-wider">現有資料列表</h3>
+                            <button onclick="clearAllData()" class="text-red-600 hover:underline text-xs font-bold">刪除全部</button>
+                        </div>
+                        <div id="manualDataList" class="space-y-2 max-h-60 overflow-y-auto pr-1">
+                            <!-- 動態填充現有列 -->
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </aside>
+
+        <!-- 右側主畫面：圖表與檢視 (白底黑線風格) -->
+        <section class="flex-1 flex flex-col gap-4 overflow-hidden">
+
+            <!-- 上半部：散布圖與象限視覺化 -->
+            <div class="bg-white rounded-xl border-2 border-black flex flex-col flex-1 min-h-[350px] relative overflow-hidden">
+                <div class="px-5 py-3 border-b-2 border-black flex flex-wrap justify-between items-center gap-2 shrink-0 bg-white">
+                    <div class="flex items-center gap-2">
+                        <h2 class="font-bold text-black text-sm">四象限散布圖與產業別曲線分析</h2>
+                        <span id="statSummaryText" class="text-xs border border-black text-black px-2 py-0.5 rounded-full font-bold">有效: 0 | 待確認: 0</span>
+                    </div>
+                    <!-- 圖例與產業別動態顏色標籤說明 -->
+                    <div class="flex items-center gap-3 text-xs text-black flex-wrap" id="industryLegendContainer">
+                        <!-- 動態生成產業別圖例 -->
+                    </div>
+                </div>
+
+                <!-- 圖表 Canvas 容器 (白底黑線) -->
+                <div class="flex-1 relative overflow-auto custom-scrollbar flex items-center justify-center p-4 bg-white">
+                    <div id="canvasContainer" class="relative w-full h-full min-w-[500px] min-h-[320px] flex items-center justify-center bg-white">
+                        <canvas id="scatterCanvas" class="w-full h-full block cursor-crosshair bg-white"></canvas>
+                        <!-- 點擊/懸停懸浮提示框 (白底黑框) -->
+                        <div id="tooltip" class="absolute hidden pointer-events-none bg-white border-2 border-black text-black text-xs rounded-lg p-2.5 shadow-xl z-20 font-sans transition-all duration-75"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 下半部：詳細資料表格與各象限筆數統計 -->
+            <div class="bg-white rounded-xl border-2 border-black h-64 flex flex-col shrink-0 overflow-hidden">
+                <div class="px-5 py-3 border-b-2 border-black flex justify-between items-center shrink-0 bg-white">
+                    <h2 class="font-bold text-black text-sm flex items-center gap-2">
+                        <span>逐筆資料檢視與分類結果 (X: 客戶數 | Y: 產業別)</span>
+                    </h2>
+                    <!-- 象限統計小卡列 -->
+                    <div class="flex items-center gap-3 text-xs font-bold" id="quadrantCounters">
+                        <!-- 動態生成統計 -->
+                    </div>
+                </div>
+
+                <!-- 表格主體 (白底黑線高對比) -->
+                <div class="flex-1 overflow-auto custom-scrollbar bg-white">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead class="bg-white text-black sticky top-0 z-10 border-b-2 border-black">
+                            <tr>
+                                <th class="p-3 font-bold border-r border-black">#</th>
+                                <th class="p-3 font-bold border-r border-black">識別碼 (ID)</th>
+                                <th class="p-3 font-bold border-r border-black">客戶名稱 (匯入)</th>
+                                <th class="p-3 font-bold border-r border-black">產業別 (匯入)</th>
+                                <th class="p-3 font-bold border-r border-black">X 數值 (客戶數)</th>
+                                <th class="p-3 font-bold border-r border-black">Y 數值 (產業別)</th>
+                                <th class="p-3 font-bold border-r border-black">所屬象限 / 狀態</th>
+                                <th class="p-3 font-bold border-r border-black">待確認說明 / 備註</th>
+                                <th class="p-3 font-bold text-right">動作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dataTableBody" class="divide-y divide-black text-black">
+                            <tr>
+                                <td colspan="9" class="p-8 text-center text-gray-500 font-medium">目前尚無資料，請透過上方「載入 CSV」或左側「資料管理」新增資料。</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- 自定義通用訊息通知視窗 (白底黑框) -->
+    <div id="messageModal" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center hidden backdrop-blur-xs">
+        <div class="bg-white rounded-xl p-6 max-w-sm w-full mx-4 border-2 border-black shadow-2xl space-y-4">
+            <h3 id="modalTitle" class="text-base font-bold text-black border-b border-black pb-1">提示訊息</h3>
+            <p id="modalMessage" class="text-sm text-black leading-relaxed"></p>
+            <div class="flex justify-end pt-2">
+                <button onclick="closeModal()" class="bg-black hover:bg-gray-800 text-white text-sm px-4 py-2 rounded-lg font-bold transition">確定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript 核心邏輯 -->
+    <script>
+        // 全域狀態資料結構
+        let rawDataRows = [];
+        let csvHeaders = [];
+        let csvRawLines = [];
+
+        let settings = {
+            colId: '',
+            colClient: '',
+            colIndustry: '',
+            colX: '',
+            colY: '',
+            xTitle: '客戶數',
+            xUnit: '家',
+            yTitle: '產業別',
+            yUnit: '',
+            xSplit: 0,
+            ySplit: 0,
+            xMin: '',
+            xMax: '',
+            yMin: '',
+            yMax: '',
+            qRT: { name: '右上象限', desc: '客戶數高、產業別高' },
+            qLT: { name: '左上象限', desc: '客戶數低、產業別高' },
+            qLB: { name: '左下象限', desc: '客戶數低、產業別低' },
+            qRB: { name: '右下象限', desc: '客戶數高、產業別低' }
+        };
+
+        let processedData = [];
+
+        // 產業別色彩對照表（鮮明且易於於白底區分的飽和顏色）
+        const INDUSTRY_COLOR_PALETTE = [
+            '#2563eb', // Blue
+            '#dc2626', // Red
+            '#16a34a', // Green
+            '#9333ea', // Purple
+            '#ea580c', // Orange
+            '#0891b2', // Cyan
+            '#db2777', // Pink
+            '#84cc16', // Lime
+            '#4f46e5', // Indigo
+            '#0284c7'  // Sky
+        ];
+
+        let industryColorMap = {}; // 產業別 -> 顏色 mapping
+
+        // 初始化
+        window.onload = function() {
+            initCanvasResize();
+            renderUI();
+        };
+
+        function switchTab(tabName) {
+            const isSettings = tabName === 'settings';
+            document.getElementById('tab-settings').className = isSettings 
+                ? 'flex-1 py-3 px-4 text-center border-r-2 border-black bg-black text-white transition' 
+                : 'flex-1 py-3 px-4 text-center border-r-2 border-black text-black hover:bg-gray-100 transition';
+            document.getElementById('tab-data').className = !isSettings 
+                ? 'flex-1 py-3 px-4 text-center bg-black text-white transition' 
+                : 'flex-1 py-3 px-4 text-center text-black hover:bg-gray-100 transition';
+
+            document.getElementById('panel-settings').classList.toggle('hidden', !isSettings);
+            document.getElementById('panel-data').classList.toggle('hidden', isSettings);
+        }
+
+        function showMessage(title, message) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalMessage').textContent = message;
+            document.getElementById('messageModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('messageModal').classList.add('hidden');
+        }
+
+        function parseCSVText(text) {
+            let lines = [];
+            let row = [];
+            let inQuotes = false;
+            let field = '';
+            
+            for (let i = 0; i < text.length; i++) {
+                let c = text[i];
+                let nextC = text[i+1];
+                
+                if (c === '"') {
+                    if (inQuotes && nextC === '"') {
+                        field += '"';
+                        i++;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (c === ',' && !inQuotes) {
+                    row.push(field.trim());
+                    field = '';
+                } else if ((c === '\r' || c === '\n') && !inQuotes) {
+                    if (c === '\r' && nextC === '\n') { i++; }
+                    row.push(field.trim());
+                    lines.push(row);
+                    row = [];
+                    field = '';
+                } else {
+                    field += c;
+                }
+            }
+            if (field !== '' || row.length > 0) {
+                row.push(field.trim());
+                lines.push(row);
+            }
+            return lines.filter(r => r.length > 0 && r.some(cell => cell !== ''));
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const content = e.target.result;
+                    const parsed = parseCSVText(content);
+                    if (parsed.length < 2) {
+                        showMessage('格式錯誤', 'CSV 檔案內容過少，必須包含標題列與至少一列資料。');
+                        return;
+                    }
+
+                    csvHeaders = parsed[0];
+                    csvRawLines = [];
+
+                    for (let i = 1; i < parsed.length; i++) {
+                        let rowArr = parsed[i];
+                        let obj = {};
+                        for (let j = 0; j < csvHeaders.length; j++) {
+                            obj[csvHeaders[j] || `Col_${j+1}`] = rowArr[j] !== undefined ? rowArr[j] : '';
+                        }
+                        csvRawLines.push(obj);
+                    }
+
+                    populateDropdowns();
+                    guessColumns();
+                    loadRawLinesIntoApp();
+                    
+                    showMessage('成功', `成功載入 ${csvRawLines.length} 筆資料列！`);
+                } catch (err) {
+                    showMessage('解析失敗', '無法解析此 CSV 檔案，請確認是否為標準 UTF-8 格式。');
+                    console.error(err);
+                }
+            };
+            reader.readAsText(file, 'UTF-8');
+            event.target.value = '';
+        }
+
+        function populateDropdowns() {
+            const colIdSelect = document.getElementById('colId');
+            const colClientSelect = document.getElementById('colClient');
+            const colIndustrySelect = document.getElementById('colIndustry');
+            const colXSelect = document.getElementById('colX');
+            const colYSelect = document.getElementById('colY');
+
+            let optionsHtml = '<option value="">-- 請選擇 --</option>';
+            let optionalOptionsHtml = '<option value="">-- 無 --</option>';
+            csvHeaders.forEach(h => {
+                optionsHtml += `<option value="${escapeHtml(h)}">${escapeHtml(h)}</option>`;
+                optionalOptionsHtml += `<option value="${escapeHtml(h)}">${escapeHtml(h)}</option>`;
+            });
+
+            colIdSelect.innerHTML = optionsHtml;
+            colClientSelect.innerHTML = optionalOptionsHtml;
+            colIndustrySelect.innerHTML = optionalOptionsHtml;
+            colXSelect.innerHTML = optionsHtml;
+            colYSelect.innerHTML = optionsHtml;
+        }
+
+        function guessColumns() {
+            if (csvHeaders.length === 0) return;
+            
+            let idCandidate = csvHeaders.find(h => /id|編號|代號|code/i.test(h)) || csvHeaders[0];
+            let clientCandidate = csvHeaders.find(h => /客戶|client|公司|name|名稱/i.test(h)) || '';
+            let industryCandidate = csvHeaders.find(h => /產業|industry|sector|類別|category/i.test(h)) || '';
+            let xCandidate = csvHeaders.find(h => /客戶數|count|number|x/i.test(h)) || csvHeaders[1] || csvHeaders[0];
+            let yCandidate = csvHeaders.find(h => /產業別|type|sector|y/i.test(h)) || csvHeaders[2] || csvHeaders[1] || csvHeaders[0];
+
+            document.getElementById('colId').value = idCandidate;
+            document.getElementById('colClient').value = clientCandidate;
+            document.getElementById('colIndustry').value = industryCandidate;
+            document.getElementById('colX').value = xCandidate;
+            document.getElementById('colY').value = yCandidate;
+
+            settings.colId = idCandidate;
+            settings.colClient = clientCandidate;
+            settings.colIndustry = industryCandidate;
+            settings.colX = xCandidate;
+            settings.colY = yCandidate;
+        }
+
+        function loadRawLinesIntoApp() {
+            rawDataRows = csvRawLines.map((rowObj, index) => {
+                return {
+                    __id: 'csv_' + index,
+                    raw: rowObj,
+                    idVal: settings.colId && rowObj[settings.colId] !== undefined ? String(rowObj[settings.colId]) : `Item_${index+1}`,
+                    clientVal: settings.colClient && rowObj[settings.colClient] !== undefined ? String(rowObj[settings.colClient]) : '',
+                    industryVal: settings.colIndustry && rowObj[settings.colIndustry] !== undefined ? String(rowObj[settings.colIndustry]) : '',
+                    xValStr: settings.colX && rowObj[settings.colX] !== undefined ? String(rowObj[settings.colX]) : '',
+                    yValStr: settings.colY && rowObj[settings.colY] !== undefined ? String(rowObj[settings.colY]) : ''
+                };
+            });
+            recomputeAndRender();
+        }
+
+        function updateMappingAndRecompute() {
+            settings.colId = document.getElementById('colId').value;
+            settings.colClient = document.getElementById('colClient').value;
+            settings.colIndustry = document.getElementById('colIndustry').value;
+            settings.colX = document.getElementById('colX').value;
+            settings.colY = document.getElementById('colY').value;
+
+            if (csvRawLines.length > 0) {
+                rawDataRows = csvRawLines.map((rowObj, index) => {
+                    return {
+                        __id: 'csv_' + index,
+                        raw: rowObj,
+                        idVal: settings.colId && rowObj[settings.colId] !== undefined ? String(rowObj[settings.colId]) : `Item_${index+1}`,
+                        clientVal: settings.colClient && rowObj[settings.colClient] !== undefined ? String(rowObj[settings.colClient]) : '',
+                        industryVal: settings.colIndustry && rowObj[settings.colIndustry] !== undefined ? String(rowObj[settings.colIndustry]) : '',
+                        xValStr: settings.colX && rowObj[settings.colX] !== undefined ? String(rowObj[settings.colX]) : '',
+                        yValStr: settings.colY && rowObj[settings.colY] !== undefined ? String(rowObj[settings.colY]) : ''
+                    };
+                });
+            }
+            recomputeAndRender();
+        }
+
+        function saveSettingsAndRedraw() {
+            settings.xTitle = document.getElementById('settingXTitle').value;
+            settings.xUnit = document.getElementById('settingXUnit').value;
+            settings.yTitle = document.getElementById('settingYTitle').value;
+            settings.yUnit = document.getElementById('settingYUnit').value;
+            
+            const xSplitVal = parseFloat(document.getElementById('settingXSplit').value);
+            settings.xSplit = isNaN(xSplitVal) ? 0 : xSplitVal;
+
+            const ySplitVal = parseFloat(document.getElementById('settingYSplit').value);
+            settings.ySplit = isNaN(ySplitVal) ? 0 : ySplitVal;
+
+            const xMinVal = document.getElementById('settingXMin').value;
+            settings.xMin = xMinVal === '' ? '' : parseFloat(xMinVal);
+            const xMaxVal = document.getElementById('settingXMax').value;
+            settings.xMax = xMaxVal === '' ? '' : parseFloat(xMaxVal);
+
+            const yMinVal = document.getElementById('settingYMin').value;
+            settings.yMin = yMinVal === '' ? '' : parseFloat(yMinVal);
+            const yMaxVal = document.getElementById('settingYMax').value;
+            settings.yMax = yMaxVal === '' ? '' : parseFloat(yMaxVal);
+
+            settings.qRT.name = document.getElementById('qRT_name').value;
+            settings.qRT.desc = document.getElementById('qRT_desc').value;
+            settings.qLT.name = document.getElementById('qLT_name').value;
+            settings.qLT.desc = document.getElementById('qLT_desc').value;
+            settings.qLB.name = document.getElementById('qLB_name').value;
+            settings.qLB.desc = document.getElementById('qLB_desc').value;
+            settings.qRB.name = document.getElementById('qRB_name').value;
+            settings.qRB.desc = document.getElementById('qRB_desc').value;
+
+            recomputeAndRender();
+        }
+
+        function addNewRow(event) {
+            event.preventDefault();
+            const idVal = document.getElementById('newId').value.trim();
+            const clientVal = document.getElementById('newClient').value.trim();
+            const industryVal = document.getElementById('newIndustry').value.trim();
+            const xVal = document.getElementById('newX').value.trim();
+            const yVal = document.getElementById('newY').value.trim();
+
+            const newObj = {
+                __id: 'manual_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
+                raw: null,
+                idVal: idVal,
+                clientVal: clientVal,
+                industryVal: industryVal,
+                xValStr: xVal,
+                yValStr: yVal
+            };
+
+            rawDataRows.push(newObj);
+
+            document.getElementById('newId').value = '';
+            document.getElementById('newClient').value = '';
+            document.getElementById('newIndustry').value = '';
+            document.getElementById('newX').value = '';
+            document.getElementById('newY').value = '';
+
+            recomputeAndRender();
+        }
+
+        function deleteManualRow(internalId) {
+            rawDataRows = rawDataRows.filter(r => r.__id !== internalId);
+            recomputeAndRender();
+        }
+
+        function clearAllData() {
+            rawDataRows = [];
+            csvRawLines = [];
+            csvHeaders = [];
+            document.getElementById('colId').innerHTML = '<option value="">-- 請選擇 --</option>';
+            document.getElementById('colClient').innerHTML = '<option value="">-- 無 --</option>';
+            document.getElementById('colIndustry').innerHTML = '<option value="">-- 無 --</option>';
+            document.getElementById('colX').innerHTML = '<option value="">-- 請選擇 --</option>';
+            document.getElementById('colY').innerHTML = '<option value="">-- 請選擇 --</option>';
+            recomputeAndRender();
+        }
+
+        function confirmReset() {
+            if (confirm('確定要清除所有資料與設定重新開始嗎？')) {
+                clearAllData();
+                document.getElementById('settingXTitle').value = '客戶數';
+                document.getElementById('settingXUnit').value = '家';
+                document.getElementById('settingYTitle').value = '產業別';
+                document.getElementById('settingYUnit').value = '';
+                document.getElementById('settingXSplit').value = '0';
+                document.getElementById('settingYSplit').value = '0';
+                document.getElementById('settingXMin').value = '';
+                document.getElementById('settingXMax').value = '';
+                document.getElementById('settingYMin').value = '';
+                document.getElementById('settingYMax').value = '';
+                
+                document.getElementById('qRT_name').value = '右上象限';
+                document.getElementById('qRT_desc').value = '客戶數高、產業別高';
+                document.getElementById('qLT_name').value = '左上象限';
+                document.getElementById('qLT_desc').value = '客戶數低、產業別高';
+                document.getElementById('qLB_name').value = '左下象限';
+                document.getElementById('qLB_desc').value = '客戶數低、產業別低';
+                document.getElementById('qRB_name').value = '右下象限';
+                document.getElementById('qRB_desc').value = '客戶數高、產業別低';
+                
+                saveSettingsAndRedraw();
+            }
+        }
+
+        // 自動維護每個產業別的對應色彩
+        function updateIndustryColors() {
+            const industries = new Set();
+            rawDataRows.forEach(r => {
+                let ind = r.industryVal ? r.industryVal.trim() : '未分類產業';
+                if (ind) industries.add(ind);
+            });
+
+            industryColorMap = {};
+            let idx = 0;
+            industries.forEach(ind => {
+                industryColorMap[ind] = INDUSTRY_COLOR_PALETTE[idx % INDUSTRY_COLOR_PALETTE.length];
+                idx++;
+            });
+        }
+
+        function getIndustryColor(industryName) {
+            let key = (industryName && industryName.trim()) ? industryName.trim() : '未分類產業';
+            return industryColorMap[key] || '#000000';
+        }
+
+        function recomputeAndRender() {
+            updateIndustryColors();
+
+            processedData = rawDataRows.map(row => {
+                let res = {
+                    __id: row.__id,
+                    idVal: row.idVal,
+                    clientVal: row.clientVal,
+                    industryVal: row.industryVal,
+                    xStr: row.xValStr,
+                    yStr: row.yValStr,
+                    xNum: null,
+                    yNum: null,
+                    status: 'valid',
+                    reason: '',
+                    quadrant: ''
+                };
+
+                if (row.xValStr === '' || row.xValStr === null || row.xValStr === undefined) {
+                    res.status = 'pending';
+                    res.reason = 'X 客戶數空白';
+                } else {
+                    let xNum = Number(row.xValStr);
+                    if (isNaN(xNum) || !isFinite(xNum)) {
+                        res.status = 'pending';
+                        res.reason = 'X 客戶數數值格式錯誤或非有限數';
+                    } else {
+                        res.xNum = xNum;
+                    }
+                }
+
+                if (row.yValStr === '' || row.yValStr === null || row.yValStr === undefined) {
+                    res.status = 'pending';
+                    res.reason = res.reason ? res.reason + '；Y 產業別空白' : 'Y 產業別空白';
+                } else {
+                    let yNum = Number(row.yValStr);
+                    if (isNaN(yNum) || !isFinite(yNum)) {
+                        res.status = 'pending';
+                        res.reason = res.reason ? res.reason + '；Y 產業別格式錯誤' : 'Y 產業別格式錯誤';
+                    } else {
+                        res.yNum = yNum;
+                    }
+                }
+
+                if (res.status === 'valid') {
+                    let isRight = res.xNum >= settings.xSplit;
+                    let isTop = res.yNum >= settings.ySplit;
+
+                    if (isRight && isTop) res.quadrant = 'RT';
+                    else if (!isRight && isTop) res.quadrant = 'LT';
+                    else if (!isRight && !isTop) res.quadrant = 'LB';
+                    else if (isRight && !isTop) res.quadrant = 'RB';
+                }
+
+                return res;
+            });
+
+            renderUI();
+        }
+
+        function renderUI() {
+            updateDataCountBadge();
+            renderManualList();
+            renderTable();
+            renderCounters();
+            renderIndustryLegend();
+            drawScatterPlot();
+        }
+
+        function updateDataCountBadge() {
+            const total = rawDataRows.length;
+            const validCount = processedData.filter(d => d.status === 'valid').length;
+            const pendingCount = total - validCount;
+
+            document.getElementById('dataCountBadge').textContent = total;
+            document.getElementById('statSummaryText').textContent = `有效: ${validCount} | 待確認: ${pendingCount}`;
+        }
+
+        function renderIndustryLegend() {
+            const container = document.getElementById('industryLegendContainer');
+            const industries = Object.keys(industryColorMap);
+            if (industries.length === 0) {
+                container.innerHTML = `<span class="text-gray-500">分界標準：數值 &lt; 分界 為左/下，≥ 分界 為右/上</span>`;
+                return;
+            }
+
+            let html = '<span class="font-bold border-r border-black pr-2">產業別曲線對照:</span>';
+            industries.forEach(ind => {
+                let color = industryColorMap[ind];
+                html += `
+                    <span class="flex items-center gap-1 font-bold">
+                        <span class="w-3 h-3 rounded-full inline-block border border-black" style="background-color: ${color}"></span>
+                        ${escapeHtml(ind)}
+                    </span>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function renderManualList() {
+            const container = document.getElementById('manualDataList');
+            if (rawDataRows.length === 0) {
+                container.innerHTML = `<div class="text-xs text-gray-400 text-center py-4">尚無資料列</div>`;
+                return;
+            }
+
+            let html = '';
+            rawDataRows.forEach((r, idx) => {
+                let subText = [r.clientVal, r.industryVal].filter(Boolean).join(' / ');
+                html += `
+                    <div class="flex items-center justify-between bg-white border border-black rounded p-2 text-xs">
+                        <div class="truncate max-w-[180px]">
+                            <span class="font-bold text-black">${escapeHtml(r.idVal)}</span>
+                            ${subText ? `<span class="text-black font-semibold block text-[10px]">${escapeHtml(subText)}</span>` : ''}
+                            <span class="text-gray-600 block">客戶數:${r.xValStr} , 產業別:${r.yValStr}</span>
+                        </div>
+                        <button onclick="deleteManualRow('${r.__id}')" class="text-red-600 hover:text-black font-bold p-1">
+                            ✕
+                        </button>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('dataTableBody');
+            if (processedData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="9" class="p-8 text-center text-gray-500 font-medium">目前尚無資料，請透過上方專屬「載入 CSV」或左側「資料管理」新增資料。</td></tr>`;
+                return;
+            }
+
+            let html = '';
+            processedData.forEach((d, idx) => {
+                let statusBadge = '';
+                let qNameFull = '';
+                if (d.status === 'valid') {
+                    let qObj = getQuadrantObject(d.quadrant);
+                    statusBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-black text-white">${qObj.name}</span>`;
+                    qNameFull = `${qObj.name} (${qObj.code})`;
+                } else {
+                    statusBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold border border-red-600 text-red-600">待確認</span>`;
+                    qNameFull = `待確認`;
+                }
+
+                let indColor = getIndustryColor(d.industryVal);
+
+                html += `
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="p-3 text-black font-mono border-r border-black">${idx + 1}</td>
+                        <td class="p-3 font-bold text-black border-r border-black">${escapeHtml(d.idVal)}</td>
+                        <td class="p-3 text-black border-r border-black">${escapeHtml(d.clientVal) || '-'}</td>
+                        <td class="p-3 font-bold border-r border-black" style="color: ${indColor};">${escapeHtml(d.industryVal) || '-'}</td>
+                        <td class="p-3 font-mono border-r border-black">${escapeHtml(d.xStr)}</td>
+                        <td class="p-3 font-mono border-r border-black">${escapeHtml(d.yStr)}</td>
+                        <td class="p-3 border-r border-black">${statusBadge} <span class="text-black font-semibold text-[11px] ml-1">${qNameFull}</span></td>
+                        <td class="p-3 text-black border-r border-black">${d.status === 'pending' ? '<span class="text-red-600 font-bold">' + escapeHtml(d.reason) + '</span>' : '-'}</td>
+                        <td class="p-3 text-right">
+                            <button onclick="deleteManualRow('${d.__id}')" class="text-black hover:text-red-600 font-bold transition" title="刪除此列">
+                                ✕
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        }
+
+        function renderCounters() {
+            const container = document.getElementById('quadrantCounters');
+            const validRows = processedData.filter(d => d.status === 'valid');
+            const pendingRows = processedData.filter(d => d.status === 'pending');
+
+            const countRT = validRows.filter(d => d.quadrant === 'RT').length;
+            const countLT = validRows.filter(d => d.quadrant === 'LT').length;
+            const countLB = validRows.filter(d => d.quadrant === 'LB').length;
+            const countRB = validRows.filter(d => d.quadrant === 'RB').length;
+            const countPending = pendingRows.length;
+
+            container.innerHTML = `
+                <div class="bg-white border-2 border-black text-black px-2.5 py-1 rounded">
+                    <span class="font-bold">${escapeHtml(settings.qRT.name)}:</span> ${countRT}
+                </div>
+                <div class="bg-white border-2 border-black text-black px-2.5 py-1 rounded">
+                    <span class="font-bold">${escapeHtml(settings.qLT.name)}:</span> ${countLT}
+                </div>
+                <div class="bg-white border-2 border-black text-black px-2.5 py-1 rounded">
+                    <span class="font-bold">${escapeHtml(settings.qLB.name)}:</span> ${countLB}
+                </div>
+                <div class="bg-white border-2 border-black text-black px-2.5 py-1 rounded">
+                    <span class="font-bold">${escapeHtml(settings.qRB.name)}:</span> ${countRB}
+                </div>
+                <div class="bg-white border-2 border-red-600 text-red-600 px-2.5 py-1 rounded">
+                    <span class="font-bold">待確認:</span> ${countPending}
+                </div>
+            `;
+        }
+
+        function getQuadrantObject(code) {
+            switch(code) {
+                case 'RT': return { code: 'Right-Top', name: settings.qRT.name, desc: settings.qRT.desc };
+                case 'LT': return { code: 'Left-Top', name: settings.qLT.name, desc: settings.qLT.desc };
+                case 'LB': return { code: 'Left-Bottom', name: settings.qLB.name, desc: settings.qLB.desc };
+                case 'RB': return { code: 'Right-Bottom', name: settings.qRB.name, desc: settings.qRB.desc };
+                default: return { code: '', name: '', desc: '' };
+            }
+        }
+
+        // Canvas 散布圖與多曲線繪製（白底黑線與產業別曲線特色）
+        let canvas, ctx;
+        let interactivePoints = [];
+
+        function initCanvasResize() {
+            canvas = document.getElementById('scatterCanvas');
+            ctx = canvas.getContext('2d');
+            
+            canvas.addEventListener('mousemove', handleCanvasMouseMove);
+            canvas.addEventListener('mouseleave', () => {
+                document.getElementById('tooltip').classList.add('hidden');
+            });
+
+            window.addEventListener('resize', () => {
+                drawScatterPlot();
+            });
+        }
+
+        function drawScatterPlot(targetCtx = null, targetWidth = null, targetHeight = null, isTransparentExport = false) {
+            const context = targetCtx || ctx;
+            if (!context) return;
+
+            const container = canvas.parentElement;
+            const width = targetWidth || Math.max(container.clientWidth, 500);
+            const height = targetHeight || Math.max(container.clientHeight, 320);
+
+            if (!targetCtx) {
+                const dpr = window.devicePixelRatio || 1;
+                canvas.width = width * dpr;
+                canvas.height = height * dpr;
+                canvas.style.width = width + 'px';
+                canvas.style.height = height + 'px';
+                context.scale(dpr, dpr);
+            }
+
+            context.clearRect(0, 0, width, height);
+
+            // 若非去背匯出，則填充純白底色
+            if (!isTransparentExport) {
+                context.fillStyle = '#ffffff';
+                context.fillRect(0, 0, width, height);
+            }
+
+            const padding = { top: 40, right: 40, bottom: 50, left: 60 };
+            const plotWidth = width - padding.left - padding.right;
+            const plotHeight = height - padding.top - padding.bottom;
+
+            if (plotWidth <= 0 || plotHeight <= 0) return;
+
+            const validRows = processedData.filter(d => d.status === 'valid');
+            
+            let xVals = validRows.map(d => d.xNum);
+            let yVals = validRows.map(d => d.yNum);
+
+            xVals.push(settings.xSplit);
+            yVals.push(settings.ySplit);
+
+            let dataXMin = xVals.length > 0 ? Math.min(...xVals) : 0;
+            let dataXMax = xVals.length > 0 ? Math.max(...xVals) : 10;
+            let dataYMin = yVals.length > 0 ? Math.min(...yVals) : 0;
+            let dataYMax = yVals.length > 0 ? Math.max(...yVals) : 10;
+
+            if (dataXMin === dataXMax) { dataXMin -= 1; dataXMax += 1; }
+            if (dataYMin === dataYMax) { dataYMin -= 1; dataYMax += 1; }
+
+            let finalXMin = (settings.xMin !== '') ? settings.xMin : (dataXMin - (dataXMax - dataXMin) * 0.1);
+            let finalXMax = (settings.xMax !== '') ? settings.xMax : (dataXMax + (dataXMax - dataXMin) * 0.1);
+            let finalYMin = (settings.yMin !== '') ? settings.yMin : (dataYMin - (dataYMax - dataYMin) * 0.1);
+            let finalYMax = (settings.yMax !== '') ? settings.yMax : (dataYMax + (dataYMax - dataYMin) * 0.1);
+
+            function scaleX(val) {
+                return padding.left + ((val - finalXMin) / (finalXMax - finalXMin)) * plotWidth;
+            }
+            function scaleY(val) {
+                return padding.top + plotHeight - ((val - finalYMin) / (finalYMax - finalYMin)) * plotHeight;
+            }
+
+            const xSplitPx = scaleX(settings.xSplit);
+            const ySplitPx = scaleY(settings.ySplit);
+
+            // 1. 四象限背景黑線框界與微陰影標記
+            if (!isTransparentExport) {
+                context.strokeStyle = '#e5e7eb';
+                context.lineWidth = 1;
+                context.strokeRect(padding.left, padding.top, plotWidth, plotHeight);
+            }
+
+            // 2. 四象限名稱 (黑色文字高對比)
+            context.font = 'bold 12px sans-serif';
+            context.textBaseline = 'top';
+            context.fillStyle = '#000000';
+            
+            context.fillText(`↗ ${settings.qRT.name}`, xSplitPx + 10, padding.top + 8);
+            context.font = '10px sans-serif';
+            context.fillText(settings.qRT.desc, xSplitPx + 10, padding.top + 24);
+
+            context.font = 'bold 12px sans-serif';
+            context.fillText(`↖ ${settings.qLT.name}`, padding.left + 10, padding.top + 8);
+            context.font = '10px sans-serif';
+            context.fillText(settings.qLT.desc, padding.left + 10, padding.top + 24);
+
+            context.font = 'bold 12px sans-serif';
+            context.fillText(`↙ ${settings.qLB.name}`, padding.left + 10, ySplitPx + 8);
+            context.font = '10px sans-serif';
+            context.fillText(settings.qLB.desc, padding.left + 10, ySplitPx + 24);
+
+            context.font = 'bold 12px sans-serif';
+            context.fillText(`↘ ${settings.qRB.name}`, xSplitPx + 10, ySplitPx + 8);
+            context.font = '10px sans-serif';
+            context.fillText(settings.qRB.desc, xSplitPx + 10, ySplitPx + 24);
+
+            // 3. 格線 (極簡黑灰色線條)
+            context.strokeStyle = '#d1d5db';
+            context.lineWidth = 1;
+
+            const xTicks = 5;
+            for (let i = 0; i <= xTicks; i++) {
+                let val = finalXMin + (finalXMax - finalXMin) * (i / xTicks);
+                let px = scaleX(val);
+                context.beginPath();
+                context.moveTo(px, padding.top);
+                context.lineTo(px, padding.top + plotHeight);
+                context.stroke();
+
+                context.fillStyle = '#000000';
+                context.font = '10px sans-serif';
+                context.textAlign = 'center';
+                context.textBaseline = 'top';
+                context.fillText(formatNumber(val), px, padding.top + plotHeight + 6);
+            }
+
+            const yTicks = 5;
+            for (let i = 0; i <= yTicks; i++) {
+                let val = finalYMin + (finalYMax - finalYMin) * (i / yTicks);
+                let py = scaleY(val);
+                context.beginPath();
+                context.moveTo(padding.left, py);
+                context.lineTo(padding.left + plotWidth, py);
+                context.stroke();
+
+                context.fillStyle = '#000000';
+                context.font = '10px sans-serif';
+                context.textAlign = 'right';
+                context.textBaseline = 'middle';
+                context.fillText(formatNumber(val), padding.left - 8, py);
+            }
+
+            // 4. 十字分界線 (純黑虛線加粗高對比)
+            context.strokeStyle = '#000000';
+            context.lineWidth = 2;
+            context.setLineDash([6, 4]);
+
+            if (xSplitPx >= padding.left && xSplitPx <= padding.left + plotWidth) {
+                context.beginPath();
+                context.moveTo(xSplitPx, padding.top);
+                context.lineTo(xSplitPx, padding.top + plotHeight);
+                context.stroke();
+
+                context.fillStyle = '#000000';
+                context.font = 'bold 10px sans-serif';
+                context.textAlign = 'center';
+                context.textBaseline = 'bottom';
+                context.fillText(`客戶數分界: ${settings.xSplit}`, xSplitPx, padding.top - 4);
+            }
+
+            if (ySplitPx >= padding.top && ySplitPx <= padding.top + plotHeight) {
+                context.beginPath();
+                context.moveTo(padding.left, ySplitPx);
+                context.lineTo(padding.left + plotWidth, ySplitPx);
+                context.stroke();
+
+                context.fillStyle = '#000000';
+                context.font = 'bold 10px sans-serif';
+                context.textAlign = 'left';
+                context.textBaseline = 'bottom';
+                context.fillText(`產業別分界: ${settings.ySplit}`, padding.left + 4, ySplitPx - 4);
+            }
+
+            context.setLineDash([]);
+
+            // 5. 軸標題 (黑色加粗)
+            context.fillStyle = '#000000';
+            context.font = 'bold 12px sans-serif';
+            context.textAlign = 'center';
+            context.textBaseline = 'bottom';
+            const xUnitStr = settings.xUnit ? ` (${settings.xUnit})` : '';
+            context.fillText(`${settings.xTitle}${xUnitStr}`, padding.left + plotWidth / 2, height - 8);
+
+            context.save();
+            context.translate(16, padding.top + plotHeight / 2);
+            context.rotate(-Math.PI / 2);
+            const yUnitStr = settings.yUnit ? ` (${settings.yUnit})` : '';
+            context.fillText(`${settings.yTitle}${yUnitStr}`, 0, 0);
+            context.restore();
+
+            if (!targetCtx) {
+                interactivePoints = [];
+            }
+
+            // 6. 依不同產業別繪製專屬顏色曲線
+            const industryGrouped = {};
+            validRows.forEach(d => {
+                let indKey = d.industryVal ? d.industryVal.trim() : '未分類產業';
+                if (!industryGrouped[indKey]) industryGrouped[indKey] = [];
+                industryGrouped[indKey].push(d);
+            });
+
+            Object.keys(industryGrouped).forEach(indKey => {
+                let groupRows = industryGrouped[indKey];
+                if (groupRows.length > 1) {
+                    let sortedRows = [...groupRows].sort((a, b) => a.xNum - b.xNum);
+                    let strokeColor = getIndustryColor(indKey);
+
+                    context.strokeStyle = strokeColor;
+                    context.lineWidth = 2.5;
+                    context.beginPath();
+                    sortedRows.forEach((d, idx) => {
+                        let px = scaleX(d.xNum);
+                        let py = scaleY(d.yNum);
+                        if (idx === 0) context.moveTo(px, py);
+                        else context.lineTo(px, py);
+                    });
+                    context.stroke();
+                }
+            });
+
+            // 7. 繪製資料點 (黑色邊框加產業別專屬點色)
+            validRows.forEach(d => {
+                let px = scaleX(d.xNum);
+                let py = scaleY(d.yNum);
+
+                if (px >= padding.left && px <= padding.left + plotWidth && py >= padding.top && py <= padding.top + plotHeight) {
+                    let pointColor = getIndustryColor(d.industryVal);
+
+                    context.beginPath();
+                    context.arc(px, py, 6, 0, Math.PI * 2);
+                    context.fillStyle = pointColor;
+                    context.fill();
+                    context.lineWidth = 2;
+                    context.strokeStyle = '#000000';
+                    context.stroke();
+
+                    if (!targetCtx) {
+                        interactivePoints.push({
+                            x: px,
+                            y: py,
+                            data: d
+                        });
+                    }
+
+                    // 點文字標籤
+                    context.fillStyle = '#000000';
+                    context.font = 'bold 10px sans-serif';
+                    context.textAlign = 'left';
+                    context.textBaseline = 'middle';
+                    let labelText = d.idVal;
+                    if (d.clientVal) labelText += ` (${d.clientVal})`;
+                    context.fillText(labelText, px + 8, py);
+                }
+            });
+        }
+
+        // 下載去背 PNG 圖片
+        function exportChartPNG() {
+            const exportCanvas = document.createElement('canvas');
+            const exportCtx = exportCanvas.getContext('2d');
+
+            const container = canvas.parentElement;
+            const exportWidth = Math.max(container.clientWidth || 800, 800);
+            const exportHeight = Math.max(container.clientHeight || 550, 550);
+
+            exportCanvas.width = exportWidth;
+            exportCanvas.height = exportHeight;
+
+            drawScatterPlot(exportCtx, exportWidth, exportHeight, true);
+
+            const dataURL = exportCanvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = 'quadrant_industry_curve_transparent.png';
+            link.href = dataURL;
+            link.click();
+        }
+
+        function formatNumber(num) {
+            if (Number.isInteger(num)) return num.toString();
+            return num.toFixed(2);
+        }
+
+        function handleCanvasMouseMove(e) {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            let hoveredPoint = null;
+            let minDist = 15;
+
+            for (let pt of interactivePoints) {
+                let dist = Math.hypot(pt.x - mouseX, pt.y - mouseY);
+                if (dist < minDist) {
+                    minDist = dist;
+                    hoveredPoint = pt;
+                }
+            }
+
+            const tooltip = document.getElementById('tooltip');
+            if (hoveredPoint) {
+                let d = hoveredPoint.data;
+                let qObj = getQuadrantObject(d.quadrant);
+                let clientInfo = d.clientVal ? `<br>客戶名稱: ${escapeHtml(d.clientVal)}` : '';
+                let indInfo = d.industryVal ? `<br>產業別: ${escapeHtml(d.industryVal)}` : '';
+                let indColor = getIndustryColor(d.industryVal);
+
+                tooltip.innerHTML = `
+                    <div class="font-bold border-b border-black pb-1 mb-1 text-black">${escapeHtml(d.idVal)}${clientInfo}<span style="color:${indColor}">${indInfo}</span></div>
+                    <div>客戶數 (X): <span class="font-mono font-bold">${d.xNum}</span></div>
+                    <div>產業別 (Y): <span class="font-mono font-bold">${d.yNum}</span></div>
+                    <div class="text-black mt-1">象限: <span class="font-bold border-b border-black">${qObj.name}</span></div>
+                `;
+                tooltip.style.left = (hoveredPoint.x + 15) + 'px';
+                tooltip.style.top = (hoveredPoint.y - 10) + 'px';
+                tooltip.classList.remove('hidden');
+                canvas.style.cursor = 'pointer';
+            } else {
+                tooltip.classList.add('hidden');
+                canvas.style.cursor = 'crosshair';
+            }
+        }
+
+        function exportDataCSV() {
+            if (rawDataRows.length === 0) {
+                showMessage('無法匯出', '目前沒有任何資料可供匯出。');
+                return;
+            }
+
+            let headers = csvHeaders.length > 0 ? csvHeaders : [settings.colId || 'ID', settings.colClient || '客戶名稱', settings.colIndustry || '產業別', settings.colX || '客戶數', settings.colY || '產業別數值'];
+            if (csvHeaders.length === 0) {
+                headers = ['ID', '客戶名稱', '產業別', '客戶數', '產業別數值'];
+            }
+
+            let csvContent = '\uFEFF' + headers.join(',') + '\n';
+            rawDataRows.forEach(r => {
+                let rowArr = headers.map(h => {
+                    let val = r.raw && r.raw[h] !== undefined ? r.raw[h] : '';
+                    if (h === settings.colId) val = r.idVal;
+                    if (h === settings.colClient) val = r.clientVal;
+                    if (h === settings.colIndustry) val = r.industryVal;
+                    if (h === settings.colX) val = r.xValStr;
+                    if (h === settings.colY) val = r.yValStr;
+                    if (!r.raw && h === 'ID') val = r.idVal;
+                    if (!r.raw && h === '客戶名稱') val = r.clientVal;
+                    if (!r.raw && h === '產業別') val = r.industryVal;
+                    if (!r.raw && h === '客戶數') val = r.xValStr;
+                    if (!r.raw && h === '產業別數值') val = r.yValStr;
+                    
+                    return `"${String(val).replace(/"/g, '""')}"`;
+                });
+                csvContent += rowArr.join(',') + '\n';
+            });
+
+            downloadCSV(csvContent, 'original_data_export.csv');
+        }
+
+        function exportResultCSV() {
+            if (processedData.length === 0) {
+                showMessage('無法匯出', '目前沒有任何分析結果可供匯出。');
+                return;
+            }
+
+            let headers = ['識別碼', '客戶名稱', '產業別', '客戶數(X)', '產業別(Y)', '分析狀態', '所屬象限代碼', '所屬象限名稱', '待確認原因'];
+            let csvContent = '\uFEFF' + headers.join(',') + '\n';
+
+            processedData.forEach(d => {
+                let qObj = d.status === 'valid' ? getQuadrantObject(d.quadrant) : { code: 'PENDING', name: '待確認' };
+                let row = [
+                    d.idVal,
+                    d.clientVal,
+                    d.industryVal,
+                    d.xStr,
+                    d.yStr,
+                    d.status === 'valid' ? '有效' : '待確認',
+                    qObj.code,
+                    qObj.name,
+                    d.reason
+                ];
+                let escapedRow = row.map(val => `"${String(val || '').replace(/"/g, '""')}"`);
+                csvContent += escapedRow.join(',') + '\n';
+            });
+
+            downloadCSV(csvContent, 'quadrant_analysis_results.csv');
+        }
+
+        function downloadCSV(content, filename) {
+            const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+    </script>
+</body>
+</html>
